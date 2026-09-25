@@ -1,0 +1,29 @@
+from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
+import requests, os
+app = FastAPI()
+VERIFY_TOKEN="whatsapp123"
+@app.get("/")
+async def verify(request: Request):
+    mode=request.query_params.get("hub.mode")
+    token=request.query_params.get("hub.verify_token")
+    chal=request.query_params.get("hub.challenge")
+    if mode=="subscribe" and token==VERIFY_TOKEN:
+        return PlainTextResponse(chal)
+    return PlainTextResponse("Error", status_code=403)
+@app.post("/")
+async def webhook(request: Request):
+    data=await request.json()
+    try:
+        entry=data["entry"][0]["changes"][0]["value"]
+        if "messages" in entry:
+            msg=entry["messages"][0]
+            frm=msg["from"]
+            txt=msg["text"]["body"]
+            url=f"https://graph.facebook.com/v20.0/{os.getenv('PHONE_NUMBER_ID')}/messages"
+            headers={"Authorization": f"Bearer {os.getenv('META_TOKEN')}", "Content-Type": "application/json"}
+            payload={"messaging_product":"whatsapp","to":frm,"text":{"body":f"Сиз жаздыңыз: {txt}"}}
+            requests.post(url, json=payload, headers=headers)
+    except Exception as e:
+        print(e)
+    return {"ok": True}
